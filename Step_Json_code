@@ -1,0 +1,68 @@
+{
+  "Comment": "Orchestrate Glue ETL Job with Success and Failure Notifications",
+  "StartAt": "Glue StartJobRun",
+  "States": {
+    "Glue StartJobRun": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun",
+      "Parameters": {
+        "JobName": "ETL_Job"
+      },
+      "Next": "Wait"
+    },
+    "Wait": {
+      "Type": "Wait",
+      "Seconds": 120,
+      "Next": "GetJobRuns"
+    },
+    "GetJobRuns": {
+      "Type": "Task",
+      "Parameters": {
+        "JobName": "ETL_Job"
+      },
+      "Resource": "arn:aws:states:::aws-sdk:glue:getJobRuns",
+      "Next": "Choice (1)"
+    },
+    "Choice (1)": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.JobRuns[0].JobRunState",
+          "StringEquals": "SUCCEEDED",
+          "Next": "SNS Publish Success"
+        },
+        {
+          "Variable": "$.JobRuns[0].JobRunState",
+          "StringEquals": "RUNNING",
+          "Next": "Wait (1)"
+        }
+      ],
+      "Default": "SNS Publish Failure"
+    },
+    "Wait (1)": {
+      "Type": "Wait",
+      "Seconds": 10,
+      "Next": "GetJobRuns"
+    },
+    "SNS Publish Failure": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "arn:aws:sns:eu-north-1:975049989132:GlueJobFailure",
+        "Message": {
+          "Message": "Step Job Failure"
+        }
+      },
+      "End": true
+    },
+    "SNS Publish Success": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "Message.$": "$",
+        "TopicArn": "arn:aws:sns:eu-north-1:975049989132:GlueJobSuccess"
+      },
+      "End": true
+    }
+  }
+}
